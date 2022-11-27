@@ -4,8 +4,10 @@ HenonCluster flask app
 
 import json
 import logging
+import time
 
 from flask import Flask, render_template
+from natsort import natsorted
 
 from gpt3.gpt3 import tldr
 from grobid.grobid import parse_pdf
@@ -27,9 +29,11 @@ def article_summarize():
 
     """ """
 
+    t0 = time.time()
+
     # DEBUG: hardcoded input
     DIRECTORY = "tmp/test1"
-    SUMMARIZE = False
+    SUMMARIZE = True
 
     # parse pdf
     tei_filepath = parse_pdf(DIRECTORY)
@@ -61,13 +65,18 @@ def article_summarize():
 
         # add to summaries
         summaries[str(ts_head_id)] = dict(
-            section_name=section_name,
-            summary=summary,
+            section_name=section_name, summary=summary, citations=set()
         )
     # NOTE: move this to tei module ---------------------------------------------------------------
 
     # prepare tei graph data
-    graph_data = prepare_graph_data(tei, text_sections, summaries)
+    summaries, graph_data = prepare_graph_data(tei, text_sections, summaries)
+
+    # prepare for output
+    for k, v in summaries.items():
+        v["citations"] = natsorted(list(v["citations"]))
+
+    logging.info(f"total article summarization: {time.time()-t0}")
 
     return render_template(
         "article_summarize.html",

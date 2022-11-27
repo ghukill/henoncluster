@@ -57,4 +57,7 @@ def prepare_graph_data(tei, text_sections, summaries: dict):
                         }
                     )
 
-    return nodes + edges
+                    # add back to summaries
+                    summaries[ts_head_id]["citations"].add((ref_id, ref_raw))
+
+    return summaries, nodes + edges
