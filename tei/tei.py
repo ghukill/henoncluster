@@ -30,7 +30,6 @@ def prepare_graph_data(tei, text_sections, summaries: dict):
         # get ref id and name
         ref_id = str(ref.attributes["{http://www.w3.org/XML/1998/namespace}id"])
         ref_raw = ref.xpath("*[@type='raw_reference']")[0].full_text
-        logging.info(f"working on ref: {ref_id}")
 
         # add node
         nodes.append({"data": {"id": ref_id, "name": ref_id}})
