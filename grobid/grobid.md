@@ -23,5 +23,12 @@ cd grobid_client_python
 python3 setup.py install
 ```
 
+## Parsing TEI XML
 
+https://komax.github.io/blog/text/python/xml/parsing_tei_xml_python/
+
+```python
+# get DOI
+soup.find('idno', type='DOI').getText()
+```
 
