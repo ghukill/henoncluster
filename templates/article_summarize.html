@@ -1,0 +1,87 @@
+<head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.23.0/cytoscape.min.js"
+            integrity="sha512-gEWKnYYa1/1c3jOuT9PR7NxiVI1bwn02DeJGsl+lMVQ1fWMNvtjkjxIApTdbJ/wcDjQmbf+McWahXwipdC9bGA=="
+            crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <style>
+        #cy {
+            width: 90%;
+            height: 1024px;
+            display: block;
+        }
+    </style>
+</head>
+<html>
+<body>
+<h1>Article Summary</h1>
+
+<ul>
+    <li><strong>Title:</strong> {{article.title}}</li>
+</ul>
+
+<div id="data">
+    <h2>Data</h2>
+    <pre><code>{{summaries}}</code></pre>
+</div>
+
+<div id="graph">
+    <h2>Graph</h2>
+    <div id="cy"></div>
+</div>
+
+</body>
+
+<script>
+
+
+
+    // init
+    var cy = cytoscape({
+
+        // init element
+        container: document.getElementById('cy'),
+
+        // parse from back-end
+        elements: JSON.parse(`{{ elements|safe }}`),
+
+        style: [ // the stylesheet for the graph
+            {
+                selector: 'node',
+                style: {
+                    'background-color': '#666',
+                    'label': 'data(name)'
+                }
+            },
+
+            {
+                selector: 'edge',
+                style: {
+                    'width': 3,
+                    'line-color': '#ccc',
+                    'target-arrow-color': '#ccc',
+                    'target-arrow-shape': 'triangle',
+                    'curve-style': 'bezier'
+                }
+            }
+        ],
+
+        layout: {
+            // https://js.cytoscape.org/#layouts
+            name: 'circle',
+            // name: 'grid',
+            // name: 'random',
+            // name: 'breadthfirst',
+            // name: 'cose',
+            // name: 'concentric',
+            rows: 1
+        }
+
+    });
+
+</script>
+
+<script>
+    console.log("graph data:");
+    console.log(JSON.parse(`{{ elements|safe }}`));
+</script>
+
+</html>

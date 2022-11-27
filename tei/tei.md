@@ -7,6 +7,7 @@ https://github.com/delb-xml/delb-py
 ```python
 from tei.tei import delb_parse
 
+# NOTE: must be single PDF in directory (need to write wrapper to copy file + remove and/or cache)
 tei = delb_parse('tmp/foo.xml')
 ```
 
@@ -27,5 +28,10 @@ d0_head = d0.css_select('head')[0]
 In [195]: d0_head.full_text
 Out[195]: 'Introduction'
 """
+```
+
+grab section by GROBID id:
+```python
+tei.xpath("//head[@xml:id='_cxxfp6A']")
 ```
 
