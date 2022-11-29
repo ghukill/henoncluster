@@ -23,7 +23,7 @@ MAX_TOKENS = 128
 def submit_prompt(prompt: str, temperature=1, max_tokens=MAX_TOKENS):
 
     response = openai.Completion.create(
-        model="text-davinci-002",
+        model="text-davinci-003",
         prompt=prompt,
         temperature=temperature,
         max_tokens=max_tokens,
