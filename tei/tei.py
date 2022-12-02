@@ -41,20 +41,29 @@ def prepare_graph_data(tei, text_sections, summaries: dict):
         for citation in citations:
             for ancestor in citation.ancestors():
                 if ancestor.qualified_name == "{http://www.tei-c.org/ns/1.0}div":
-                    ts_head_id = str(
-                        ancestor.xpath("head")[0].attributes[
-                            "{http://www.w3.org/XML/1998/namespace}id"
-                        ]
-                    )
-                    edges.append(
-                        {
-                            "data": {
-                                "id": f"{ref_id}_{ts_head_id}",
-                                "source": ref_id,
-                                "target": ts_head_id,
+                    try:
+                        ts_head_id = str(
+                            ancestor.xpath("head")[0].attributes[
+                                "{http://www.w3.org/XML/1998/namespace}id"
+                            ]
+                        )
+                        edges.append(
+                            {
+                                "data": {
+                                    "id": f"{ref_id}_{ts_head_id}",
+                                    "source": ref_id,
+                                    "target": ts_head_id,
+                                }
                             }
-                        }
-                    )
+                        )
+                    except Exception as e:
+                        logging.warning(
+                            {
+                                "msg": "error getting ts_head_id",
+                                "error": str(e),
+                                "ancestor": ancestor,
+                            }
+                        )
 
                     # add back to summaries
                     summaries[ts_head_id]["citations"].add((ref_id, ref_raw))

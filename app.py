@@ -9,7 +9,7 @@ import time
 from flask import Flask, render_template
 from natsort import natsorted
 
-from gpt3.gpt3 import tldr
+from gpt3.gpt3 import summarize_text
 from grobid.grobid import parse_pdf
 from tei.tei import delb_parse, prepare_graph_data
 
@@ -59,7 +59,7 @@ def article_summarize():
         # summarize text section
         if SUMMARIZE:
             logging.info(f"summarizing section: {section_name}")
-            summary = tldr(ts.full_text, max_tokens=256)
+            summary = summarize_text(ts.full_text, max_tokens=256)
         else:
             summary = "Not summarizing..."
 
