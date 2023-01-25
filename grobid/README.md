@@ -2,6 +2,6 @@
 
 ## run
 
-```shel
+```shell
 ./gradlew run
 ```

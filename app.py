@@ -2,12 +2,16 @@
 HenonCluster flask app
 """
 
+from collections import defaultdict
+import glob
 import json
 import logging
 import time
 
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 from natsort import natsorted
+from nltk import ngrams
+import pdfplumber
 
 from gpt3.gpt3 import summarize_text
 from grobid.grobid import parse_pdf
@@ -86,3 +90,54 @@ def article_summarize():
         summaries=json.dumps(summaries, indent=4),
         elements=json.dumps(graph_data, indent=4),
     )
+
+
+@app.route("/articles/compare")
+def articles_compare():
+
+    NGRAM_SIZE = 8
+    PAGE_LIMIT = 2
+
+    # DIRECTORY = "tmp/test1"
+    DIRECTORY = request.args.get("directory")
+    TARGET = request.args.get("target")
+    logging.info(f"working on directory: {DIRECTORY}, target: {TARGET}")
+
+    pdfs = {}
+    for filepath in glob.glob(f"{DIRECTORY}/*.pdf"):
+
+        # extract filename
+        pdf_filename = filepath.split("/")[-1]
+        logging.info(f"working on PDF: {pdf_filename}")
+
+        # extract text
+        with pdfplumber.open(filepath) as pdf:
+            bow = []
+            for page in pdf.pages:
+                if page.page_number >= PAGE_LIMIT:
+                    continue
+                text = page.extract_text().replace("\n", " ").lower()
+                bow.extend(text.split(" "))
+                logging.info(f"page {page.page_number} completed")
+
+            # cleanup
+            # TODO: improve non-word removal
+            exclude = [" ", ""]
+            bow = [w for w in bow if w not in exclude]
+
+        # add to pdfs
+        pdfs[pdf_filename] = list(ngrams(bow, NGRAM_SIZE))
+
+        # loop through and compare
+        collisions = defaultdict(list)
+        target_ngs = pdfs[TARGET]
+        for pdf, ngs in pdfs.items():
+            if pdf == TARGET:
+                continue
+            logging.info(f"checking against: {pdf}")
+            for target_ng in target_ngs:
+                for ng in ngs:
+                    if target_ng == ng:
+                        collisions[pdf].append(target_ng)
+
+    return collisions
