@@ -6,9 +6,12 @@ from collections import defaultdict
 import glob
 import json
 import logging
+import os
+import pickle
 import time
 
 from flask import Flask, render_template, request, jsonify
+from fuzzywuzzy import fuzz
 from natsort import natsorted
 from nltk import ngrams
 import pdfplumber
@@ -21,6 +24,8 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 app = Flask(__name__)
+
+app.config["JSON_SORT_KEYS"] = False
 
 
 @app.route("/")
@@ -107,35 +112,58 @@ def articles_compare():
 
         # extract filename
         pdf_filename = filepath.split("/")[-1]
+        cache_filepath = f"{DIRECTORY}/{pdf_filename}.{PAGE_LIMIT}.bow"
         logging.info(f"extracting text: {pdf_filename}")
 
         # extract text
-        with pdfplumber.open(filepath) as pdf:
-            bow = []
-            for page in pdf.pages:
-                if page.page_number > PAGE_LIMIT:
-                    continue
-                text = page.extract_text().replace("\n", " ").lower()
-                bow.extend(text.split(" "))
+        if os.path.exists(cache_filepath):
+            logging.info(f"CACHE HIT: {cache_filepath}")
+            with open(cache_filepath, "rb") as f:
+                bow = pickle.load(f)
+        else:
+            with pdfplumber.open(filepath) as pdf:
+                bow = []
+                for page in pdf.pages:
+                    if page.page_number > PAGE_LIMIT:
+                        continue
+                    text = page.extract_text().replace("\n", " ").lower()
+                    bow.extend(text.split(" "))
 
-            # cleanup BOW
-            # TODO: improve non-word removal
-            exclude = [" ", ""]
-            bow = [w for w in bow if w not in exclude]
+                # cleanup BOW
+                # TODO: improve non-word removal
+                exclude = [" ", ""]
+                bow = [w for w in bow if w not in exclude]
+
+                with open(cache_filepath, "wb") as f:
+                    pickle.dump(bow, f)
 
         # add to pdfs
-        pdfs[pdf_filename] = list(ngrams(bow, NGRAM_SIZE))
+        pdfs[pdf_filename] = list(dict.fromkeys(list(ngrams(bow, NGRAM_SIZE))))
 
     # loop through and compare
     collisions = defaultdict(list)
     target_ngs = pdfs[TARGET]
     for pdf, ngs in pdfs.items():
+        possible = []
         if pdf == TARGET:
             continue
         for target_ng in target_ngs:
             for ng in ngs:
                 if target_ng == ng:
-                    collisions[pdf].append(target_ng)
+                    possible.append(" ".join(target_ng))
+        print(possible)
+        if len(possible) == 0:
+            continue
+        elif len(possible) == 1:
+            collisions[pdf] = possible
+        else:
+            collisions[pdf].append(possible[0])
+            for i in range(1, (len(possible) - 1)):
+                p = fuzz.partial_ratio(possible[i], possible[i + 1])
+                print(p)
+                if p < 80:
+                    collisions[pdf].append(possible[i])
+
         logging.info(f"found {len(collisions[pdf])} collisions against {pdf}")
 
     return jsonify(collisions)
