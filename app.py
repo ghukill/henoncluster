@@ -183,6 +183,7 @@ def articles_compare_v2():
 
     pdfs = {}
 
+    # TODO: abstract to BOW helper
     for filepath in glob.glob(f"{DIRECTORY}/*.pdf"):
 
         # extract filename
@@ -230,17 +231,21 @@ def articles_compare_v2():
                 )
             )
         dfs.append(pd.DataFrame(data, columns=["pdf", "ngram_size", "ngram"]))
-
     df = pd.concat(dfs)
 
     # create phrase from ngram
     df.ngram = df.ngram.apply(lambda x: " ".join(x))
 
-    # drop duplicates
+    # drop true duplicates
     df = df.drop_duplicates(keep="first")
 
-    # get duplicates
-    colls = df[df.ngram.duplicated()]
+    # get phrase collisions
+    colls = df[df.ngram.duplicated(keep=False)]
+
+    # filter only rows where ngram is collision with target PDF
+    colls = colls[
+        colls.ngram.isin(colls[colls.pdf == TARGET].ngram) & ~(colls.pdf == TARGET)
+    ]
 
     # sort and remove ngrams that are embedded in a larger one
     colls = colls.sort_values(by="ngram_size")
@@ -255,6 +260,9 @@ def articles_compare_v2():
 
     # return only the longest
     unq_df = colls[~colls.sub_ngram]
+
+    # reverse sort
+    unq_df = unq_df.sort_values(by=["pdf", "ngram_size"], ascending=False)
 
     # return as HTML
     return unq_df.to_html()
