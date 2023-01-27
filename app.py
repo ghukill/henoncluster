@@ -14,6 +14,8 @@ from flask import Flask, render_template, request, jsonify
 from fuzzywuzzy import fuzz
 from natsort import natsorted
 from nltk import ngrams
+import numpy as np
+import pandas as pd
 import pdfplumber
 
 from gpt3.gpt3 import summarize_text
@@ -167,3 +169,92 @@ def articles_compare():
         logging.info(f"found {len(collisions[pdf])} collisions against {pdf}")
 
     return jsonify(collisions)
+
+
+@app.route("/articles/compare/v2")
+def articles_compare_v2():
+
+    DIRECTORY = request.args.get("directory")
+    TARGET = request.args.get("target")
+    NGLOW = int(request.args.get("nglow", 8))
+    NGHIGH = int(request.args.get("nghigh", 50))
+    PAGE_LIMIT = int(request.args.get("page_limit", 1000))
+    logging.info("%s %s %s %s %s" % (DIRECTORY, TARGET, NGLOW, NGHIGH, PAGE_LIMIT))
+
+    pdfs = {}
+
+    for filepath in glob.glob(f"{DIRECTORY}/*.pdf"):
+
+        # extract filename
+        pdf_filename = filepath.split("/")[-1]
+        cache_filepath = f"{DIRECTORY}/{pdf_filename}.{PAGE_LIMIT}.bow"
+        logging.info(f"extracting text: {pdf_filename}")
+
+        # extract text
+        if os.path.exists(cache_filepath):
+            logging.info(f"CACHE HIT: {cache_filepath}")
+            with open(cache_filepath, "rb") as f:
+                bow = pickle.load(f)
+        else:
+            with pdfplumber.open(filepath) as pdf:
+                bow = []
+                for page in pdf.pages:
+                    if page.page_number > PAGE_LIMIT:
+                        continue
+                    text = page.extract_text().replace("\n", " ").lower()
+                    bow.extend(text.split(" "))
+
+                # cleanup BOW
+                # TODO: improve non-word removal
+                exclude = [" ", ""]
+                bow = [w for w in bow if w not in exclude]
+
+                with open(cache_filepath, "wb") as f:
+                    pickle.dump(bow, f)
+
+        pdfs[pdf_filename] = bow
+
+    # generate dataframes
+    dfs = []
+    for pdf, bow in pdfs.items():
+        data = []
+        for ng_size in range(NGLOW, NGHIGH):
+            _ngs = list(ngrams(bow, ng_size))
+            data.extend(
+                list(
+                    zip(
+                        np.array([pdf] * len(_ngs)),
+                        np.array([ng_size] * len(_ngs)),
+                        _ngs,
+                    )
+                )
+            )
+        dfs.append(pd.DataFrame(data, columns=["pdf", "ngram_size", "ngram"]))
+
+    df = pd.concat(dfs)
+
+    # create phrase from ngram
+    df.ngram = df.ngram.apply(lambda x: " ".join(x))
+
+    # drop duplicates
+    df = df.drop_duplicates(keep="first")
+
+    # get duplicates
+    colls = df[df.ngram.duplicated()]
+
+    # sort and remove ngrams that are embedded in a larger one
+    colls = colls.sort_values(by="ngram_size")
+
+    def remove_sub_gram(ngs, ng):
+        for _ng in ngs:
+            if ng in _ng and ng != _ng:
+                return True
+        return False
+
+    colls["sub_ngram"] = colls.ngram.apply(lambda ng: remove_sub_gram(colls.ngram, ng))
+
+    # return only the longest
+    unq_df = colls[~colls.sub_ngram]
+
+    # return as HTML
+    return unq_df.to_html()
